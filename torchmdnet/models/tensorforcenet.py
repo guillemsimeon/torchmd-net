@@ -255,14 +255,14 @@ class TensorForceNet(nn.Module):
         distance_proj2 = self.distance_proj2(edge_attr)
         distance_proj3 = self.distance_proj3(edge_attr)
         
-        Iij = distance_proj1(edge_attr)[..., None, None] * C * eye
+        Iij = distance_proj1[..., None, None] * C * eye
         Aij = (
-            distance_proj2(edge_attr)[..., None, None]
+            distance_proj2[..., None, None]
             * C
             * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]
         )
         Sij = (
-            distance_proj3(edge_attr)[..., None, None]
+            distance_proj3[..., None, None]
             * C
             * vector_to_symtensor(edge_vec_norm)[..., None, :, :]
         )
@@ -392,19 +392,19 @@ class TensorForceNet(nn.Module):
         grad_distance_proj2 = (grad_Aij * C * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
         grad_distance_proj3 = (grad_Sij * C * vector_to_symtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
 
-        grad_edge_attr = grad_distance_proj1 @ distance_proj1.weight + (
-                    grad_distance_proj2 @ distance_proj2.weight + grad_distance_proj3 @ distance_proj3.weight)
+        grad_edge_attr = grad_distance_proj1 @ self.distance_proj1.weight + (
+                    grad_distance_proj2 @ self.distance_proj2.weight + grad_distance_proj3 @ self.distance_proj3.weight)
 
-        grad_C = distance_proj1(edge_attr)[...,None,None] * eye * grad_Iij + (
-            distance_proj2(edge_attr)[...,None,None] * vector_to_skewtensor(edge_vec_norm)[..., None, :, :] * grad_Aij
-            + distance_proj3(edge_attr)[...,None,None] * vector_to_symtensor(edge_vec_norm)[..., None, :, :] * grad_Sij)
+        grad_C = distance_proj1[...,None,None] * eye * grad_Iij + (
+            distance_proj2[...,None,None] * vector_to_skewtensor(edge_vec_norm)[..., None, :, :] * grad_Aij
+            + distance_proj3[...,None,None] * vector_to_symtensor(edge_vec_norm)[..., None, :, :] * grad_Sij)
 
         grad_edge_weight = grad_rbfs(edge_weight, self.distance.betas, self.distance.means, self.distance.alpha,
                                      self.cutoff_upper, self.cutoff, grad_edge_attr)
         grad_edge_weight = grad_edge_weight + (grad_C * Zij).sum((-1,-2,-3)) * der_cutoff(edge_weight,1.1)
 
-        grad_edge_vec_norm1 = grad_symtensor((distance_proj3(edge_attr)[...,None,None] * C * grad_Sij).sum(-3), edge_vec_norm)
-        grad_edge_vec_norm2 = grad_skewtensor((distance_proj2(edge_attr)[...,None,None] * C * grad_Aij).sum(-3), edge_vec_norm)
+        grad_edge_vec_norm1 = grad_symtensor((distance_proj3[...,None,None] * C * grad_Sij).sum(-3), edge_vec_norm)
+        grad_edge_vec_norm2 = grad_skewtensor((distance_proj2[...,None,None] * C * grad_Aij).sum(-3), edge_vec_norm)
         grad_edge_vec_norm = grad_edge_vec_norm1
         grad_edge_vec_norm = grad_edge_vec_norm + grad_edge_vec_norm2
         grad_edge_vec = grad_edge_vec_norm / edge_weight.masked_fill(mask, 1).unsqueeze(1)

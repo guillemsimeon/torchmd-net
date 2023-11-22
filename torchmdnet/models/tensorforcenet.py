@@ -1,4 +1,5 @@
 import torch
+import math
 from typing import Optional, Tuple
 from torch import Tensor, nn
 from torchmdnet.models.utils import (

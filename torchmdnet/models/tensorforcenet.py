@@ -317,19 +317,14 @@ class TensorForceNet(nn.Module):
         norm2 = self.linears_scalar[1](act_norm1)
         norm = self.act(norm2)
         norm = norm.reshape(-1, self.hidden_channels, 3)
-        
-        I = (
-            self.linears_tensor[0](I0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-            * norm[..., 0, None, None]
-        )
-        A = (
-            self.linears_tensor[1](A0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-            * norm[..., 1, None, None]
-        )
-        S = (
-            self.linears_tensor[2](S0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-            * norm[..., 2, None, None]
-        )
+
+        I1 = self.linears_tensor[0](I0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        A1 = self.linears_tensor[1](A0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        S1 = self.linears_tensor[2](S0.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+
+        I = I1 * norm[..., 0, None, None]
+        A = A1 * norm[..., 1, None, None]
+        S = S1 * norm[..., 2, None, None]
         
         tnormI = tensor_norm(I)
         tnormA = tensor_norm(A)

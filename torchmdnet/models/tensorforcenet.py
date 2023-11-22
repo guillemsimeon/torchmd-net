@@ -235,36 +235,6 @@ class TensorForceNet(nn.Module):
         nn.init.xavier_uniform_(self.output_linear2.weight)
         self.output_linear2.bias.data.fill_(0)
 
-    def forward(
-        self,
-        z: Tensor,
-        pos: Tensor,
-        batch: Tensor,
-        q: Optional[Tensor] = None,
-        s: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-        # Obtain graph, with distances and relative position vectors
-        edge_index, edge_weight, edge_vec = self.distance(pos, batch)
-        # This assert convinces TorchScript that edge_vec is a Tensor and not an Optional[Tensor]
-        assert (
-            edge_vec is not None
-        ), "Distance module did not return directional information"
-        # Distance module returns -1 for non-existing edges, to avoid having to resize the tensors when we want to ensure static shapes (for CUDA graphs) we make all non-existing edges pertain to a ghost atom
-        zp = z
-        if self.static_shapes:
-            mask = (edge_index[0] < 0).unsqueeze(0).expand_as(edge_index)
-            zp = torch.cat((z, torch.zeros(1, device=z.device, dtype=z.dtype)), dim=0)
-            # I trick the model into thinking that the masked edges pertain to the extra atom
-            # WARNING: This can hurt performance if max_num_pairs >> actual_num_pairs
-            edge_index = edge_index.masked_fill(mask, z.shape[0])
-            edge_weight = edge_weight.masked_fill(mask[0], 0)
-            edge_vec = edge_vec.masked_fill(mask[0].unsqueeze(-1).expand_as(edge_vec), 0)
-        edge_attr = self.distance_expansion(edge_weight)
-        mask = edge_index[0] == edge_index[1]
-        # Normalizing edge vectors by their length can result in NaNs, breaking Autograd.
-        # I avoid dividing by zero by setting the weight of self edges and self loops to 1
-        edge_vec_norm = edge_vec / edge_weight.masked_fill(mask, 1).unsqueeze(1)
-    
     def _get_atomic_number_message(self, zp: Tensor, edge_index: Tensor) -> Tensor:
         Z = self.emb(zp)
         Zij = self.emb2(
@@ -297,6 +267,36 @@ class TensorForceNet(nn.Module):
             * vector_to_symtensor(edge_vec_norm)[..., None, :, :]
         )
         return Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, C, eye
+
+    def forward(
+        self,
+        z: Tensor,
+        pos: Tensor,
+        batch: Tensor,
+        q: Optional[Tensor] = None,
+        s: Optional[Tensor] = None,
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        # Obtain graph, with distances and relative position vectors
+        edge_index, edge_weight, edge_vec = self.distance(pos, batch)
+        # This assert convinces TorchScript that edge_vec is a Tensor and not an Optional[Tensor]
+        assert (
+            edge_vec is not None
+        ), "Distance module did not return directional information"
+        # Distance module returns -1 for non-existing edges, to avoid having to resize the tensors when we want to ensure static shapes (for CUDA graphs) we make all non-existing edges pertain to a ghost atom
+        zp = z
+        if self.static_shapes:
+            mask = (edge_index[0] < 0).unsqueeze(0).expand_as(edge_index)
+            zp = torch.cat((z, torch.zeros(1, device=z.device, dtype=z.dtype)), dim=0)
+            # I trick the model into thinking that the masked edges pertain to the extra atom
+            # WARNING: This can hurt performance if max_num_pairs >> actual_num_pairs
+            edge_index = edge_index.masked_fill(mask, z.shape[0])
+            edge_weight = edge_weight.masked_fill(mask[0], 0)
+            edge_vec = edge_vec.masked_fill(mask[0].unsqueeze(-1).expand_as(edge_vec), 0)
+        edge_attr = self.distance_expansion(edge_weight)
+        mask = edge_index[0] == edge_index[1]
+        # Normalizing edge vectors by their length can result in NaNs, breaking Autograd.
+        # I avoid dividing by zero by setting the weight of self edges and self loops to 1
+        edge_vec_norm = edge_vec / edge_weight.masked_fill(mask, 1).unsqueeze(1)
 
         Zij = self._get_atomic_number_message(zp, edge_index)
         Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, C, eye = self._get_tensor_messages(

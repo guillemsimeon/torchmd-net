@@ -355,8 +355,8 @@ class TensorForceNet(nn.Module):
             grad_s = torch.ones_like(s3, device=s3.device, dtype=s3.dtype)
             
         grad_s = grad_s @ lin3.weight
-        grad_s = (der_act(s2) * grad_s) @ lin2.weight
-        grad_s = (der_act(s1) * grad_s) @ lin1.weight
+        grad_s = (der_act(s2) * grad_s) @ self.output_linear2.weight
+        grad_s = (der_act(s1) * grad_s) @ self.output_linear1.weight
         grad_x = layer_norm_backward(grad_s, x, self.out_norm.weight, self.out_norm.eps)
         grad_tnormI = grad_x[:,:self.hidden_channels]
         grad_tnormA = grad_x[:,self.hidden_channels:2*self.hidden_channels]

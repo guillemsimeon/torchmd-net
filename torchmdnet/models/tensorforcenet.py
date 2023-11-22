@@ -424,4 +424,4 @@ class TensorForceNet(nn.Module):
         grad_positions_.index_add_(0, edge_index_[1], -result)
         grad_positions = grad_positions_[:num_atoms]
         
-        return x, grad_pos, z, pos, batch
+        return s3, grad_pos, z, pos, batch

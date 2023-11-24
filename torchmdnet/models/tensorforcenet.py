@@ -250,7 +250,7 @@ class TensorForceNet(nn.Module):
 
     def _get_tensor_messages(
         self, Zij: Tensor, edge_weight: Tensor, edge_vec_norm: Tensor, edge_attr: Tensor
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         C = self.cutoff(edge_weight).reshape(-1, 1, 1, 1) * Zij
         eye = torch.eye(3, 3, device=edge_vec_norm.device, dtype=edge_vec_norm.dtype)[
             None, None, ...
@@ -258,19 +258,22 @@ class TensorForceNet(nn.Module):
         distance_proj1 = self.distance_proj1(edge_attr)
         distance_proj2 = self.distance_proj2(edge_attr)
         distance_proj3 = self.distance_proj3(edge_attr)
+
+        symtensor = vector_to_symtensor(edge_vec_norm)
+        skewtensor = vector_to_skewtensor(edge_vec_norm)
         
         Iij = distance_proj1[..., None, None] * C * eye
         Aij = (
             distance_proj2[..., None, None]
             * C
-            * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]
+            * skewtensor[..., None, :, :]
         )
         Sij = (
             distance_proj3[..., None, None]
             * C
-            * vector_to_symtensor(edge_vec_norm)[..., None, :, :]
+            * symtensor[..., None, :, :]
         )
-        return Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, C, eye
+        return Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, symtensor, skewtensor, C, eye
 
     def forward(
         self,
@@ -303,7 +306,7 @@ class TensorForceNet(nn.Module):
         edge_vec_norm = edge_vec / edge_weight.masked_fill(mask, 1).unsqueeze(1)
 
         Zij = self._get_atomic_number_message(zp, edge_index)
-        Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, C, eye = self._get_tensor_messages(
+        Iij, Aij, Sij, distance_proj1, distance_proj2, distance_proj3, symtensor, skewtensor, C, eye = self._get_tensor_messages(
             Zij, edge_weight, edge_vec_norm, edge_attr
         )
         source = torch.zeros(
@@ -389,15 +392,15 @@ class TensorForceNet(nn.Module):
             grad_Sij = grad_S0[edge_index[0]]
 
             grad_distance_proj1 = (grad_Iij * C * eye).sum((-1,-2))
-            grad_distance_proj2 = (grad_Aij * C * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
-            grad_distance_proj3 = (grad_Sij * C * vector_to_symtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
+            grad_distance_proj2 = (grad_Aij * C * skewtensor[..., None, :, :]).sum((-1,-2))
+            grad_distance_proj3 = (grad_Sij * C * symtensor[..., None, :, :]).sum((-1,-2))
 
             grad_edge_attr = grad_distance_proj1 @ self.distance_proj1.weight + (
                         grad_distance_proj2 @ self.distance_proj2.weight + grad_distance_proj3 @ self.distance_proj3.weight)
 
             grad_C = distance_proj1[...,None,None] * eye * grad_Iij + (
-                distance_proj2[...,None,None] * vector_to_skewtensor(edge_vec_norm)[..., None, :, :] * grad_Aij
-                + distance_proj3[...,None,None] * vector_to_symtensor(edge_vec_norm)[..., None, :, :] * grad_Sij)
+                distance_proj2[...,None,None] * skewtensor[..., None, :, :] * grad_Aij
+                + distance_proj3[...,None,None] * symtensor[..., None, :, :] * grad_Sij)
 
             grad_edge_weight = grad_rbfs(edge_weight, self.distance.betas, self.distance.means, self.distance.alpha,
                                      self.cutoff_upper, self.cutoff, grad_edge_attr)

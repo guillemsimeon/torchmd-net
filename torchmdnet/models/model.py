@@ -90,7 +90,7 @@ def create_model(args, prior_model=None, mean=None, std=None):
         is_equivariant = False
         representation_model = TensorForceNet(
             equivariance_invariance_group=args["equivariance_invariance_group"],
-            manual_grad = args["manual_grad"]
+            manual_grad = args["manual_grad"],
             **shared_args,
         )
     else:

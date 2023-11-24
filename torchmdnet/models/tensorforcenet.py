@@ -145,6 +145,7 @@ class TensorForceNet(nn.Module):
         max_z=128,
         equivariance_invariance_group="O(3)",
         static_shapes=True,
+        manual_grad = True,
         dtype=torch.float32,
     ):
         super(TensorForceNet, self).__init__()
@@ -205,6 +206,8 @@ class TensorForceNet(nn.Module):
         self.act = act_class()
         
         self.static_shapes = static_shapes
+        self.manual_grad = manual_grad
+        
         self.distance = OptimizedDistance(
             cutoff_lower,
             cutoff_upper,
@@ -276,7 +279,7 @@ class TensorForceNet(nn.Module):
         batch: Tensor,
         q: Optional[Tensor] = None,
         s: Optional[Tensor] = None,
-    ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+    ) -> Tuple[Tensor, Optional[Tensor], Tensor, Tensor, Tensor]:
         # Obtain graph, with distances and relative position vectors
         edge_index, edge_weight, edge_vec = self.distance(pos, batch)
         # This assert convinces TorchScript that edge_vec is a Tensor and not an Optional[Tensor]
@@ -341,83 +344,87 @@ class TensorForceNet(nn.Module):
 
         if self.static_shapes:
             s3 = s3[:-1]
-
-        ## backward
-        if self.static_shapes:
-            grad_s = torch.cat((torch.ones_like(s3, device=s3.device, dtype=s3.dtype),
-                                torch.zeros(1,1, device=s3.device, dtype=s3.dtype)),dim=0)
-        else:
-            grad_s = torch.ones_like(s3, device=s3.device, dtype=s3.dtype)
             
-        grad_s = grad_s @ lin3.weight
-        grad_s = (der_act(s2) * grad_s) @ self.output_linear2.weight
-        grad_s = (der_act(s1) * grad_s) @ self.output_linear1.weight
-        grad_x = layer_norm_backward(grad_s, x, self.out_norm.weight, self.out_norm.eps)
-        grad_tnormI = grad_x[:,:self.hidden_channels]
-        grad_tnormA = grad_x[:,self.hidden_channels:2*self.hidden_channels]
-        grad_tnormS = grad_x[:,2*self.hidden_channels:]
+        if self.manual_grad:
+        ## backward
+            if self.static_shapes:
+                grad_s = torch.cat((torch.ones_like(s3, device=s3.device, dtype=s3.dtype),
+                                    torch.zeros(1,1, device=s3.device, dtype=s3.dtype)),dim=0)
+            else:
+                grad_s = torch.ones_like(s3, device=s3.device, dtype=s3.dtype)
+            
+            grad_s = grad_s @ lin3.weight
+            grad_s = (der_act(s2) * grad_s) @ self.output_linear2.weight
+            grad_s = (der_act(s1) * grad_s) @ self.output_linear1.weight
+            grad_x = layer_norm_backward(grad_s, x, self.out_norm.weight, self.out_norm.eps)
+            grad_tnormI = grad_x[:,:self.hidden_channels]
+            grad_tnormA = grad_x[:,self.hidden_channels:2*self.hidden_channels]
+            grad_tnormS = grad_x[:,2*self.hidden_channels:]
 
-        grad_I = 2 * I * grad_tnormI[...,None,None]
-        grad_A = 2 * A * grad_tnormA[...,None,None]
-        grad_S = 2 * S * grad_tnormS[...,None,None]
+            grad_I = 2 * I * grad_tnormI[...,None,None]
+            grad_A = 2 * A * grad_tnormA[...,None,None]
+            grad_S = 2 * S * grad_tnormS[...,None,None]
 
-        der_act_norm2 = der_act(norm2).reshape(norm2.shape[0],self.hidden_channels,3)
-        der_act_norm2[...,0] = der_act_norm2[...,0] * (I1 * grad_I).sum((-1,-2))
-        der_act_norm2[...,1] = der_act_norm2[...,1] * (A1 * grad_A).sum((-1,-2))
-        der_act_norm2[...,2] = der_act_norm2[...,2] * (S1 * grad_S).sum((-1,-2))
-        der_act_norm2 = der_act_norm2.reshape(norm2.shape[0],self.hidden_channels * 3)
+            der_act_norm2 = der_act(norm2).reshape(norm2.shape[0],self.hidden_channels,3)
+            der_act_norm2[...,0] = der_act_norm2[...,0] * (I1 * grad_I).sum((-1,-2))
+            der_act_norm2[...,1] = der_act_norm2[...,1] * (A1 * grad_A).sum((-1,-2))
+            der_act_norm2[...,2] = der_act_norm2[...,2] * (S1 * grad_S).sum((-1,-2))
+            der_act_norm2 = der_act_norm2.reshape(norm2.shape[0],self.hidden_channels * 3)
 
-        grad_norm = ((der_act_norm2 @ self.linears_scalar[1].weight) * der_act(norm1)) @ self.linears_scalar[0].weight
+            grad_norm = ((der_act_norm2 @ self.linears_scalar[1].weight) * der_act(norm1)) @ self.linears_scalar[0].weight
 
-        grad_tensornorm = layer_norm_backward(grad_norm, tensornorm, self.init_norm.weight, self.init_norm.eps)
+            grad_tensornorm = layer_norm_backward(grad_norm, tensornorm, self.init_norm.weight, self.init_norm.eps)
 
-        grad_I0 = ((norm[...,0,None,None]*grad_I).permute(0, 2, 3, 1) @ self.linears_tensor[0].weight).permute(0, 3, 1, 2)
-        grad_I0 = grad_I0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
+            grad_I0 = ((norm[...,0,None,None]*grad_I).permute(0, 2, 3, 1) @ self.linears_tensor[0].weight).permute(0, 3, 1, 2)
+            grad_I0 = grad_I0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
 
-        grad_A0 = ((norm[...,1,None,None]*grad_A).permute(0, 2, 3, 1) @ self.linears_tensor[1].weight).permute(0, 3, 1, 2)
-        grad_A0 = grad_A0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
+            grad_A0 = ((norm[...,1,None,None]*grad_A).permute(0, 2, 3, 1) @ self.linears_tensor[1].weight).permute(0, 3, 1, 2)
+            grad_A0 = grad_A0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
 
-        grad_S0 = ((norm[...,2,None,None]*grad_S).permute(0, 2, 3, 1) @ self.linears_tensor[2].weight).permute(0, 3, 1, 2)
-        grad_S0 = grad_S0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
+            grad_S0 = ((norm[...,2,None,None]*grad_S).permute(0, 2, 3, 1) @ self.linears_tensor[2].weight).permute(0, 3, 1, 2)
+            grad_S0 = grad_S0 + 2 * (I0+A0+S0) * grad_tensornorm[...,None,None]
 
-        grad_Iij = grad_I0[edge_index[0]]
-        grad_Aij = grad_A0[edge_index[0]]
-        grad_Sij = grad_S0[edge_index[0]]
+            grad_Iij = grad_I0[edge_index[0]]
+            grad_Aij = grad_A0[edge_index[0]]
+            grad_Sij = grad_S0[edge_index[0]]
 
-        grad_distance_proj1 = (grad_Iij * C * eye).sum((-1,-2))
-        grad_distance_proj2 = (grad_Aij * C * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
-        grad_distance_proj3 = (grad_Sij * C * vector_to_symtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
+            grad_distance_proj1 = (grad_Iij * C * eye).sum((-1,-2))
+            grad_distance_proj2 = (grad_Aij * C * vector_to_skewtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
+            grad_distance_proj3 = (grad_Sij * C * vector_to_symtensor(edge_vec_norm)[..., None, :, :]).sum((-1,-2))
 
-        grad_edge_attr = grad_distance_proj1 @ self.distance_proj1.weight + (
-                    grad_distance_proj2 @ self.distance_proj2.weight + grad_distance_proj3 @ self.distance_proj3.weight)
+            grad_edge_attr = grad_distance_proj1 @ self.distance_proj1.weight + (
+                        grad_distance_proj2 @ self.distance_proj2.weight + grad_distance_proj3 @ self.distance_proj3.weight)
 
-        grad_C = distance_proj1[...,None,None] * eye * grad_Iij + (
-            distance_proj2[...,None,None] * vector_to_skewtensor(edge_vec_norm)[..., None, :, :] * grad_Aij
-            + distance_proj3[...,None,None] * vector_to_symtensor(edge_vec_norm)[..., None, :, :] * grad_Sij)
+            grad_C = distance_proj1[...,None,None] * eye * grad_Iij + (
+                distance_proj2[...,None,None] * vector_to_skewtensor(edge_vec_norm)[..., None, :, :] * grad_Aij
+                + distance_proj3[...,None,None] * vector_to_symtensor(edge_vec_norm)[..., None, :, :] * grad_Sij)
 
-        grad_edge_weight = grad_rbfs(edge_weight, self.distance.betas, self.distance.means, self.distance.alpha,
+            grad_edge_weight = grad_rbfs(edge_weight, self.distance.betas, self.distance.means, self.distance.alpha,
                                      self.cutoff_upper, self.cutoff, grad_edge_attr)
-        grad_edge_weight = grad_edge_weight + (grad_C * Zij).sum((-1,-2,-3)) * der_cutoff(edge_weight, self.cutoff_upper)
+            grad_edge_weight = grad_edge_weight + (grad_C * Zij).sum((-1,-2,-3)) * der_cutoff(edge_weight, self.cutoff_upper)
 
-        grad_edge_vec_norm1 = grad_symtensor((distance_proj3[...,None,None] * C * grad_Sij).sum(-3), edge_vec_norm)
-        grad_edge_vec_norm2 = grad_skewtensor((distance_proj2[...,None,None] * C * grad_Aij).sum(-3), edge_vec_norm)
-        grad_edge_vec_norm = grad_edge_vec_norm1
-        grad_edge_vec_norm = grad_edge_vec_norm + grad_edge_vec_norm2
-        grad_edge_vec = grad_edge_vec_norm / edge_weight.masked_fill(mask, 1).unsqueeze(1)
+            grad_edge_vec_norm1 = grad_symtensor((distance_proj3[...,None,None] * C * grad_Sij).sum(-3), edge_vec_norm)
+            grad_edge_vec_norm2 = grad_skewtensor((distance_proj2[...,None,None] * C * grad_Aij).sum(-3), edge_vec_norm)
+            grad_edge_vec_norm = grad_edge_vec_norm1
+            grad_edge_vec_norm = grad_edge_vec_norm + grad_edge_vec_norm2
+            grad_edge_vec = grad_edge_vec_norm / edge_weight.masked_fill(mask, 1).unsqueeze(1)
 
-        grad_edge_weight = grad_edge_weight + (1-mask.float()) * (
-            -edge_vec * grad_edge_vec_norm/((edge_weight**2).masked_fill(mask, 1)).unsqueeze(-1)).sum(-1)
+            grad_edge_weight = grad_edge_weight + (1-mask.float()) * (
+                -edge_vec * grad_edge_vec_norm/((edge_weight**2).masked_fill(mask, 1)).unsqueeze(-1)).sum(-1)
 
-        num_atoms=z.shape[0]
-        zero_mask = edge_weight == 0
-        zero_mask3 = zero_mask.unsqueeze(-1).expand_as(grad_edge_vec)
-        grad_distances_ = edge_vec / edge_weight.masked_fill(zero_mask, 1).unsqueeze(-1) * \
-                          grad_edge_weight.masked_fill(zero_mask, 0).unsqueeze(-1)
-        result = grad_edge_vec.masked_fill(zero_mask3, 0) + grad_distances_
-        grad_positions_ = torch.zeros([num_atoms + 1, 3], dtype=edge_vec.dtype, device=edge_vec.device)
-        edge_index_ = edge_index.masked_fill(zero_mask.unsqueeze(0).expand_as(edge_index), num_atoms)
-        grad_positions_.index_add_(0, edge_index_[0], result)
-        grad_positions_.index_add_(0, edge_index_[1], -result)
-        grad_positions = grad_positions_[:num_atoms]
-        
+            num_atoms=z.shape[0]
+            zero_mask = edge_weight == 0
+            zero_mask3 = zero_mask.unsqueeze(-1).expand_as(grad_edge_vec)
+            grad_distances_ = edge_vec / edge_weight.masked_fill(zero_mask, 1).unsqueeze(-1) * \
+                              grad_edge_weight.masked_fill(zero_mask, 0).unsqueeze(-1)
+            result = grad_edge_vec.masked_fill(zero_mask3, 0) + grad_distances_
+            grad_positions_ = torch.zeros([num_atoms + 1, 3], dtype=edge_vec.dtype, device=edge_vec.device)
+            edge_index_ = edge_index.masked_fill(zero_mask.unsqueeze(0).expand_as(edge_index), num_atoms)
+            grad_positions_.index_add_(0, edge_index_[0], result)
+            grad_positions_.index_add_(0, edge_index_[1], -result)
+            grad_pos = grad_positions_[:num_atoms]
+            
+        else:
+            grad_pos = None
+            
         return s3, grad_pos, z, pos, batch

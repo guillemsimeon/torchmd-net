@@ -147,7 +147,7 @@ class TensorForceNet(nn.Module):
         static_shapes=True,
         dtype=torch.float32,
     ):
-        super(TensorNet, self).__init__()
+        super(TensorForceNet, self).__init__()
 
         assert rbf_type in rbf_class_mapping, (
             f'Unknown RBF type "{rbf_type}". '

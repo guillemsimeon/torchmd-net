@@ -82,6 +82,16 @@ def create_model(args, prior_model=None, mean=None, std=None):
             equivariance_invariance_group=args["equivariance_invariance_group"],
             **shared_args,
         )
+
+    elif args["model"] == "tensorforcenet":
+        from torchmdnet.models.tensorforcenet import TensorForceNet
+
+        # Setting is_equivariant to False to enforce the use of Scalar output module instead of EquivariantScalar
+        is_equivariant = False
+        representation_model = TensorForceNet(
+            equivariance_invariance_group=args["equivariance_invariance_group"],
+            **shared_args,
+        )
     else:
         raise ValueError(f'Unknown architecture: {args["model"]}')
 

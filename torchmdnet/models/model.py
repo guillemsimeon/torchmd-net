@@ -90,6 +90,7 @@ def create_model(args, prior_model=None, mean=None, std=None):
         is_equivariant = False
         representation_model = TensorForceNet(
             equivariance_invariance_group=args["equivariance_invariance_group"],
+            manual_grad = args["manual_grad"]
             **shared_args,
         )
     else:
@@ -123,6 +124,7 @@ def create_model(args, prior_model=None, mean=None, std=None):
         mean=mean,
         std=std,
         derivative=args["derivative"],
+        manual_grad=args["manual_grad"]
         dtype=dtype,
     )
     return model
@@ -244,6 +246,7 @@ class TorchMD_Net(nn.Module):
         mean=None,
         std=None,
         derivative=False,
+        manual_grad=False
         dtype=torch.float32,
     ):
         super(TorchMD_Net, self).__init__()
@@ -267,7 +270,7 @@ class TorchMD_Net(nn.Module):
         )
 
         self.derivative = derivative
-
+        self.manual_grad = manual_grad
         mean = torch.scalar_tensor(0) if mean is None else mean
         self.register_buffer("mean", mean.to(dtype=dtype))
         std = torch.scalar_tensor(1) if std is None else std
@@ -353,5 +356,9 @@ class TorchMD_Net(nn.Module):
                 raise RuntimeError("Autograd returned None for the force prediction.")
 
             return y, -dy
+
+        if self.manual_grad:
+            return y, -v
+            
         # TODO: return only `out` once Union typing works with TorchScript (https://github.com/pytorch/pytorch/pull/53180)
         return y, None

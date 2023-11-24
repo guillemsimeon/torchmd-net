@@ -402,7 +402,7 @@ class TensorForceNet(nn.Module):
                 distance_proj2[...,None,None] * skewtensor[..., None, :, :] * grad_Aij
                 + distance_proj3[...,None,None] * symtensor[..., None, :, :] * grad_Sij)
 
-            grad_edge_weight = grad_rbfs(edge_weight, self.distance.betas, self.distance.means, self.distance.alpha,
+            grad_edge_weight = grad_rbfs(edge_weight, self.distance_expansion.betas, self.distance_expansion.means, self.distance_expansion.alpha,
                                      self.cutoff_upper, self.cutoff, grad_edge_attr)
             grad_edge_weight = grad_edge_weight + (grad_C * Zij).sum((-1,-2,-3)) * der_cutoff(edge_weight, self.cutoff_upper)
 

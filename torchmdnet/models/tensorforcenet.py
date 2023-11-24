@@ -183,7 +183,7 @@ class TensorForceNet(nn.Module):
         self.max_z = max_z
         self.emb = nn.Embedding(max_z, hidden_channels, dtype=dtype)
         self.emb2 = nn.Linear(2 * hidden_channels, hidden_channels, dtype=dtype)
-        self.act = activation()
+        
         self.linears_tensor = nn.ModuleList()
         for _ in range(3):
             self.linears_tensor.append(

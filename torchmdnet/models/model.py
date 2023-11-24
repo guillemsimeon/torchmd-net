@@ -124,7 +124,7 @@ def create_model(args, prior_model=None, mean=None, std=None):
         mean=mean,
         std=std,
         derivative=args["derivative"],
-        manual_grad=args["manual_grad"]
+        manual_grad=args["manual_grad"],
         dtype=dtype,
     )
     return model
@@ -246,7 +246,7 @@ class TorchMD_Net(nn.Module):
         mean=None,
         std=None,
         derivative=False,
-        manual_grad=False
+        manual_grad=False,
         dtype=torch.float32,
     ):
         super(TorchMD_Net, self).__init__()

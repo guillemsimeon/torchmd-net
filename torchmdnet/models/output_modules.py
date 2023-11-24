@@ -47,6 +47,22 @@ class OutputModel(nn.Module, metaclass=ABCMeta):
     def post_reduce(self, x):
         return x
 
+## output model created for just adding atom-wise energy contributions already coming from representation model
+class Identity(OutputModel):
+    def __init__(
+        self,
+        reduce_op="sum",
+        dtype=torch.float,
+    ):
+        super(Identity, self).__init__(
+            allow_prior_model=allow_prior_model, reduce_op=reduce_op
+        )
+        
+    def pre_reduce(self, x, v: Optional[torch.Tensor], z, pos, batch):
+        return x
+
+
+
 
 class Scalar(OutputModel):
     def __init__(

@@ -51,6 +51,10 @@ class OutputModel(nn.Module, metaclass=ABCMeta):
 class Identity(OutputModel):
     def __init__(
         self,
+        ## I need to include hidden_channels and act because model.py assumes they are always required
+        hidden_channels,
+        activation,
+        allow_prior_model=False,
         reduce_op="sum",
         dtype=torch.float,
     ):

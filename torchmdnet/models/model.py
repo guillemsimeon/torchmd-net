@@ -321,6 +321,8 @@ class TorchMD_Net(nn.Module):
         # scale by data standard deviation
         if self.std is not None:
             x = x * self.std
+            if self.manual_grad:
+                v = v * self.std
 
         # apply atom-wise prior model
         if self.prior_model is not None:

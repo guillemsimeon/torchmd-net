@@ -87,7 +87,7 @@ class Scalar(OutputModel):
             nn.Linear(hidden_channels // 2, 1, dtype=dtype),
         )
 
-        self.reset_parameters()
+#        self.reset_parameters()
 
     def reset_parameters(self):
         nn.init.xavier_uniform_(self.output_network[0].weight)

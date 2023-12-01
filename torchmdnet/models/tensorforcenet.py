@@ -201,10 +201,7 @@ class TensorForceNet(nn.Module):
         
         self.linear = nn.Linear(3 * hidden_channels, hidden_channels, dtype=dtype)
         self.out_norm = nn.LayerNorm(3 * hidden_channels, dtype=dtype)
-        self.output_linear1 = nn.Linear(hidden_channels, hidden_channels // 2, dtype=dtype)
-        self.output_linear2 = nn.Linear(hidden_channels // 2, 1, dtype=dtype)
-        self.act = act_class()
-        
+
         self.static_shapes = static_shapes
         self.manual_grad = manual_grad
         
@@ -218,8 +215,11 @@ class TensorForceNet(nn.Module):
             resize_to_fit=not self.static_shapes,
             long_edge_index=True,
         )
+        self.output_linear1 = nn.Linear(hidden_channels, hidden_channels // 2, dtype=dtype)
+        self.act = act_class()
+        self.output_linear2 = nn.Linear(hidden_channels // 2, 1, dtype=dtype)
 
-        self.reset_parameters()
+#        self.reset_parameters()
 
     def reset_parameters(self):
         self.distance_proj1.reset_parameters()

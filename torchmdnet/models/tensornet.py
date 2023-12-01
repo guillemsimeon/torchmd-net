@@ -176,7 +176,7 @@ class TensorNet(nn.Module):
             long_edge_index=True,
         )
 
-        self.reset_parameters()
+        #self.reset_parameters()
 
     def reset_parameters(self):
         self.tensor_embedding.reset_parameters()
@@ -273,7 +273,7 @@ class TensorEmbedding(nn.Module):
             nn.Linear(2 * hidden_channels, 3 * hidden_channels, bias=True, dtype=dtype)
         )
         self.init_norm = nn.LayerNorm(hidden_channels, dtype=dtype)
-        self.reset_parameters()
+#        self.reset_parameters()
 
     def reset_parameters(self):
         self.distance_proj1.reset_parameters()

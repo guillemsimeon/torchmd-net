@@ -31,7 +31,7 @@ def set_torch_cuda_arch_list():
 set_torch_cuda_arch_list()
 
 extension_root= os.path.join("torchmdnet", "extensions")
-neighbor_sources=["neighbors_cpu.cpp"]
+neighbor_sources=["neighbors_cpu.cpp", "neighbors_backward.cpp"]
 if use_cuda:
     neighbor_sources.append("neighbors_cuda.cu")
 neighbor_sources = [os.path.join(extension_root, "neighbors", source) for source in neighbor_sources]

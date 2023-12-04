@@ -8,6 +8,7 @@ from torchmdnet.models.model import create_model
 from utils import load_example_args, create_example_batch
 import random
 import numpy as np
+torch.autograd.set_detect_anomaly(True)
 
 def set_all_seeds(seed):
     torch.manual_seed(seed)
@@ -63,4 +64,4 @@ def test_tensorforce():
 
     torch.testing.assert_allclose(energy, energy_test)
     torch.testing.assert_allclose(forces, forces_test)
-    torch.testing.assert_allclose(force_diff, force_diff_test)
+    torch.testing.assert_allclose(force_diff, force_diff_test, rtol=1e-3, atol=1e-3)

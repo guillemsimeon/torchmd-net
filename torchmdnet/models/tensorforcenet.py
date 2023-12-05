@@ -80,29 +80,11 @@ def der_act(x):
     return sigx * (1 + x  * (1 - sigx))
 
 def layer_norm_backward(dY, X, gamma, eps):
-    # Dimensions
-    N = X.size(-1)
-    dims = (-1,)
-
-    # Compute mean and variance of X along the last dimension
-    mean = X.mean(dims, keepdim=True)
-    var = X.var(dims, keepdim=True, unbiased=False)
-    rstd = 1 / torch.sqrt(var + eps)
-
-    # Use default gamma value if not provided
-    gamma_val = gamma if gamma is not None else torch.ones_like(X)
-
-    # Calculate stats_x1 and stats_x2 using vectorized operations
-    stats_x1 = (dY * gamma_val * rstd).sum(dims, keepdim=True)
-    stats_x2 = ((dY * gamma_val) * (X - mean) * rstd).sum(dims, keepdim=True)
-
-    # Compute gradients with respect to X using vectorized operations
-    term1 = (1 / N) * rstd
-    f_grad_input = N * gamma_val * dY
-    f_grad_input -= (X - mean) * rstd * stats_x2
-    f_grad_input -= (dY * gamma_val).sum(dims, keepdim=True)
-    f_grad_input *= term1
-
+    rstd = torch.rsqrt(X.var(-1, keepdim=True, correction=0) + eps)
+    X0 = X - X.mean(-1, keepdim=True)
+    dy_x0 = dY * gamma * rstd
+    stats_x1 = (dy_x0 * X0).mean(-1, keepdim=True)
+    f_grad_input = dy_x0 - dy_x0.mean(-1, keepdim=True) - (X0 * rstd**2) * stats_x1
     return f_grad_input
 
 def grad_symtensor(grad_S, v):

@@ -62,6 +62,6 @@ def test_tensorforce():
     print("Mean forces relative error: ", torch.mean(forces_rel_error))
     print("Mean force diff relative error: ", torch.mean(force_diff_rel_error))
 
-    torch.testing.assert_allclose(energy, energy_test)
-    torch.testing.assert_allclose(forces, forces_test)
-    torch.testing.assert_allclose(force_diff, force_diff_test, rtol=1e-3, atol=1e-3)
+    torch.testing.assert_close(energy, energy_test)
+    torch.testing.assert_close(forces, forces_test)
+    torch.testing.assert_close(force_diff, force_diff_test, rtol=1e-3, atol=1e-3)

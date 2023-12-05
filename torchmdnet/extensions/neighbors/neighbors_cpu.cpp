@@ -4,7 +4,6 @@
 using std::tuple;
 using torch::arange;
 using torch::div;
-using torch::frobenius_norm;
 using torch::full;
 using torch::hstack;
 using torch::index_select;
@@ -68,7 +67,7 @@ forward(const Tensor& positions, const Tensor& batch, const Tensor& box_vectors,
         deltas -= outer(round(deltas.index({Slice(), 0}) / box_vectors.index({0, 0})),
                         box_vectors.index({0}));
     }
-    distances = frobenius_norm(deltas, 1);
+    distances = torch::linalg::vector_norm(deltas, 2.0, 1, false, c10::nullopt);
     mask = (distances < cutoff_upper) * (distances >= cutoff_lower);
     neighbors = neighbors.index({Slice(), mask});
     deltas = deltas.index({mask, Slice()});

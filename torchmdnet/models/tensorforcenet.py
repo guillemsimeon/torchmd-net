@@ -67,16 +67,11 @@ def grad_rbfs(dist, betas, means, alpha, cutoff_upper, cutoff_fn, grad_output):
     exp_arg = alpha * (-dist_expanded)
     exp_term = torch.exp(exp_arg)
     smearing_term = torch.exp(-betas * (exp_term - means.unsqueeze(0)) ** 2)  # Applying broadcasting
-    output = cutoff_fn(dist_expanded) * smearing_term  # Shape will be [5, 3]
-
-
-    der_cutoff = -(math.pi / (2 * cutoff_upper)) * torch.sin(math.pi * dist_expanded / cutoff_upper)
-    doutput_ddist_expanded = (smearing_term * der_cutoff + cutoff_fn(dist_expanded) *
-                          (-2 * betas * (exp_term - means.unsqueeze(0)) * smearing_term *
-                           exp_term * -alpha)) * grad_output
-    doutput_ddist_expanded_summed = doutput_ddist_expanded.sum(dim=-1)
-    grad_dist =doutput_ddist_expanded_summed
-
+    diff_cutoff = der_cutoff(dist_expanded, cutoff_upper)
+    doutput_ddist_expanded = (smearing_term * diff_cutoff + cutoff_fn(dist_expanded) *
+                          (2 * betas * (exp_term - means.unsqueeze(0)) * smearing_term *
+                           exp_term * alpha)) * grad_output
+    grad_dist = doutput_ddist_expanded.sum(dim=-1)
     return grad_dist
 
 def der_act(x):
@@ -111,13 +106,9 @@ def layer_norm_backward(dY, X, gamma, eps):
     return f_grad_input
 
 def grad_symtensor(grad_S, v):
-    # Calculate the gradient of the outer product term
-    grad_v_outer = torch.matmul(grad_S + (grad_S).transpose(-1,-2), v.unsqueeze(-1)).squeeze(-1)
-    # Calculate the gradient of the diagonal reduction term
-    grad_v_diag = 2/3 * v * grad_S.diagonal(dim1=-2, dim2=-1).sum(-1, keepdim=True)
-    # Combine the gradients
+    grad_v_outer = torch.matmul(grad_S + grad_S.transpose(-1,-2), v.unsqueeze(-1)).squeeze(-1)
+    grad_v_diag = (2.0/3.0) * v * grad_S.diagonal(dim1=-2, dim2=-1).sum(-1, keepdim=True)
     grad_v = grad_v_outer - grad_v_diag
-
     return grad_v
 
 def grad_skewtensor(grad_output, vector):

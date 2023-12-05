@@ -82,7 +82,7 @@ def grad_rbfs(dist, betas, means, alpha, cutoff_upper, cutoff_fn, grad_output):
 def der_act(x):
     sig = torch.nn.Sigmoid()
     sigx = sig(x)
-    return sigx + x * sigx - x * sigx**2
+    return sigx * (1 + x  * (1 - sigx))
 
 def layer_norm_backward(dY, X, gamma, eps):
     # Dimensions

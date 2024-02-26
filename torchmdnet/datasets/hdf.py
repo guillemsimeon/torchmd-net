@@ -53,8 +53,6 @@ class HDF5(Dataset):
                             self.fields.append(("y", "energy", torch.float32))
                         if "forces" in group:
                             self.fields.append(("neg_dy", "forces", torch.float32))
-<<<<<<< HEAD
-=======
                         if "charge" in group:
                             self.fields.append(("q", "charge", torch.float32))
                         if "spin" in group:
@@ -62,7 +60,6 @@ class HDF5(Dataset):
                         if "partial_charges" in group:
                             self.fields.append(
                                 ("pq", "partial_charges", torch.float32)
->>>>>>> ea8664f09876c683bc174a8aae42b256e29eb489
                             )
                         assert ("energy" in group) or (
                             "forces" in group

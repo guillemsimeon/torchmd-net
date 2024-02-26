@@ -237,8 +237,11 @@ class TensorNet(nn.Module):
         ), "Distance module did not return directional information"
         # Distance module returns -1 for non-existing edges, to avoid having to resize the tensors when we want to ensure static shapes (for CUDA graphs) we make all non-existing edges pertain to a ghost atom
         # Total charge q is a molecule-wise property. We transform it into an atom-wise property, with all atoms belonging to the same molecule being assigned the same charge q
-        if q is None:
+        if q is None and s is None:
             q = torch.zeros_like(z, device=z.device, dtype=z.dtype)
+        ##current ugly hack to deal with spins
+        elif q is None and s is not None:
+            q = s[batch]
         else:
             q = q[batch]
         zp = z
@@ -483,7 +486,7 @@ class Interaction(nn.Module):
         if self.equivariance_invariance_group == "O(3)":
             A = torch.matmul(msg, Y)
             B = torch.matmul(Y, msg)
-            I, A, S = decompose_tensor((1 + 0.1 * q[..., None, None, None]) * (A + B))
+            I, A, S = decompose_tensor((1 + 0.5 * q[..., None, None, None]) * (A + B))
         if self.equivariance_invariance_group == "SO(3)":
             B = torch.matmul(Y, msg)
             I, A, S = decompose_tensor(2 * B)

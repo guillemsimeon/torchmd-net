@@ -54,9 +54,6 @@ class HDF5(Dataset):
                         if "forces" in group:
                             self.fields.append(("neg_dy", "forces", torch.float32))
 <<<<<<< HEAD
-                        if "spin" in group:
-                            self.fields.append(
-                                ("s", "spin", torch.float32)
 =======
                         if "charge" in group:
                             self.fields.append(("q", "charge", torch.float32))

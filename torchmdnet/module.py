@@ -163,7 +163,9 @@ class LNNP(LightningModule):
                 stage, "neg_dy", loss_name, loss_neg_y
             )
         if "y" in batch:
-            loss_y = loss_fn(y, batch.y)
+            #print(((y - batch.y)**2).mean())
+            #print(batch.y)
+            loss_y = loss_fn(y.squeeze(-1), batch.y.squeeze(-1))
             loss_y = self._update_loss_with_ema(stage, "y", loss_name, loss_y)
         return {"y": loss_y, "neg_dy": loss_neg_y}
 

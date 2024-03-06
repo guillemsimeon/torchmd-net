@@ -241,9 +241,10 @@ class TensorNet(nn.Module):
             q = torch.zeros_like(z, device=z.device, dtype=z.dtype)
         ##current ugly hack to deal with spins
         elif q is None and s is not None:
-            q = s[batch]
+            q = s[batch].squeeze()
         else:
             q = q[batch]
+        
         zp = z
         if self.static_shapes:
             mask = (edge_index[0] < 0).unsqueeze(0).expand_as(edge_index)
@@ -445,6 +446,9 @@ class Interaction(nn.Module):
             )
         self.act = activation()
         self.equivariance_invariance_group = equivariance_invariance_group
+        self.w1 = nn.Parameter(torch.tensor(1.0))
+        self.w2 = nn.Parameter(torch.tensor(1.0))
+        self.tanh = nn.Tanh()
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -486,7 +490,7 @@ class Interaction(nn.Module):
         if self.equivariance_invariance_group == "O(3)":
             A = torch.matmul(msg, Y)
             B = torch.matmul(Y, msg)
-            I, A, S = decompose_tensor((1 + 0.5 * q[..., None, None, None]) * (A + B))
+            I, A, S = decompose_tensor((1 + (q * self.w1)[...,None,None,None]) * (A + B))
         if self.equivariance_invariance_group == "SO(3)":
             B = torch.matmul(Y, msg)
             I, A, S = decompose_tensor(2 * B)
@@ -496,5 +500,5 @@ class Interaction(nn.Module):
         A = self.linears_tensor[4](A.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         S = self.linears_tensor[5](S.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
         dX = I + A + S
-        X = X + dX + (1 + 0.1 * q[..., None, None, None]) * torch.matrix_power(dX, 2)
+        X = X + dX + (1 + (q * self.w2)[...,None,None,None]) * torch.matrix_power(dX, 2)
         return X
